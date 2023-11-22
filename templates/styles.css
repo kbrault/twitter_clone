@@ -1,0 +1,25 @@
+body{
+    margin: 20px !important;
+  }
+  .tweet{
+    margin: 10px;;
+  }
+
+  .tweetDate{
+    font-size: x-small;
+  }
+
+  .tweetMessage{
+    padding-left:10px;
+  }
+
+  .button-error {
+      color: white;
+      font-size: 70%;
+      border-radius: 4px;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+  }
+
+  .button-error {
+      background: rgb(202, 60, 60);
+  }

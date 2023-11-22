@@ -4,6 +4,7 @@ use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use dotenvy;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
+
 //use uuid::Uuid;
 
 type Tweets = Response<Tweet>;
@@ -50,6 +51,7 @@ async fn index() -> impl Responder {
     let template = IndexTemplate {
         app_name: "Twitter Clone".to_string(),
     };
+
     HttpResponse::Ok().body(template.render().unwrap_or_else(|e| {
         eprintln!("Template rendering error: {}", e);
         "Error rendering template".to_string()

@@ -1,17 +1,12 @@
-use actix_web::{get, middleware::Logger, web, App, HttpServer, Responder, Result};
+use actix_web::{get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder, Result};
+use askama::Template;
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use dotenvy;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
-use std::{sync::Mutex, vec};
-use uuid::Uuid;
+//use uuid::Uuid;
 
 type Tweets = Response<Tweet>;
-
-struct AppState {
-    app_name: String,
-    counter: Mutex<i32>,
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Tweet {
@@ -21,16 +16,17 @@ struct Tweet {
     likes: Vec<Like>,
 }
 
-impl Tweet {
-    fn new(message: String) -> Self {
-        Self {
-            id: Uuid::new_v4().to_string(),
-            date: Utc::now(),
-            message,
-            likes: vec![],
-        }
-    }
-}
+// TODO :
+// impl Tweet {
+//     fn new(message: String) -> Self {
+//         Self {
+//             id: Uuid::new_v4().to_string(),
+//             date: Utc::now(),
+//             message,
+//             likes: vec![],
+//         }
+//     }
+// }
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Like {
@@ -43,16 +39,25 @@ struct Response<T> {
     results: Vec<T>,
 }
 
+#[derive(Template)]
+#[template(path = "index.html")]
+struct IndexTemplate {
+    app_name: String,
+}
+
 #[get("/")]
-async fn index(data: web::Data<AppState>) -> String {
-    let app_name = &data.app_name;
-    let mut counter = data.counter.lock().unwrap();
-    *counter += 1;
-    format!("{app_name} was visited {counter} times this run.")
+async fn index() -> impl Responder {
+    let template = IndexTemplate {
+        app_name: "Twitter Clone".to_string(),
+    };
+    HttpResponse::Ok().body(template.render().unwrap_or_else(|e| {
+        eprintln!("Template rendering error: {}", e);
+        "Error rendering template".to_string()
+    }))
 }
 
 #[get("/tweets")]
-pub async fn list(db: web::Data<SqlitePool>) -> Result<impl Responder> {
+pub async fn list(db: web::Data<SqlitePool>) -> Result<HttpResponse, actix_web::Error> {
     let mut tweets: Response<Tweet> = Tweets { results: vec![] };
 
     let result = sqlx::query("SELECT * FROM tweets")
@@ -74,10 +79,11 @@ pub async fn list(db: web::Data<SqlitePool>) -> Result<impl Responder> {
                 };
                 tweets.results.push(to_add)
             }
-            Ok(web::Json(tweets))
+            Ok(HttpResponse::Ok().json(tweets))
         }
         Err(e) => {
-            panic!("Error : {}", e);
+            eprintln!("Failed to fetch users: {:?}", e);
+            Ok(HttpResponse::InternalServerError().finish())
         }
     }
 }
@@ -88,18 +94,11 @@ pub async fn list(db: web::Data<SqlitePool>) -> Result<impl Responder> {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let database_url = dotenvy::var("DATABASE_URL").unwrap();
-
-    let app = web::Data::new(AppState {
-        app_name: String::from("Twitter Clone"),
-        counter: Mutex::new(0),
-    });
-
     let pool = SqlitePool::connect(&database_url).await.unwrap();
 
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
     HttpServer::new(move || {
         App::new()
-            .app_data(app.clone())
             .app_data(web::Data::new(pool.clone()))
             .service(index)
             .service(list)

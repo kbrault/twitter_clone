@@ -1,12 +1,13 @@
 use actix_files as fs;
+use actix_files::NamedFile;
 use actix_web::{
-    get, middleware::Logger, post, web, App, HttpResponse, HttpServer, Responder, Result,
+    get, middleware::Logger, post, web, App, HttpRequest, HttpResponse, HttpServer, Result,
 };
-use askama::Template;
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use dotenvy;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
+use std::path::PathBuf;
 
 //use uuid::Uuid;
 
@@ -17,7 +18,6 @@ pub struct Tweet {
     id: String,
     date: DateTime<Utc>,
     message: String,
-    likes: Vec<Like>,
 }
 
 // TODO for POST :
@@ -43,34 +43,20 @@ struct Response<T> {
     results: Vec<T>,
 }
 
-#[derive(Template)]
-#[template(path = "index.html")]
-struct IndexTemplate {
-    app_name: String,
-}
-
 async fn not_found() -> HttpResponse {
     HttpResponse::NotFound().body("404 - Not Found")
 }
 
-#[get("/")]
-async fn index() -> impl Responder {
-    // Askama templating just for 1 variable : overkill, but just to try it :)
-    let template = IndexTemplate {
-        app_name: "Twitter Clone".to_string(),
-    };
-
-    HttpResponse::Ok().body(template.render().unwrap_or_else(|e| {
-        eprintln!("Template rendering error: {}", e);
-        "Error rendering template".to_string()
-    }))
+async fn index(_req: HttpRequest) -> Result<NamedFile> {
+    let path: PathBuf = "./static/index.html".parse().unwrap();
+    Ok(NamedFile::open(path)?)
 }
 
 #[get("/tweets")]
 pub async fn get_tweet(db: web::Data<SqlitePool>) -> Result<HttpResponse> {
     let mut tweets: Response<Tweet> = Tweets { results: vec![] };
 
-    let result = sqlx::query("SELECT * FROM tweets")
+    let result = sqlx::query("SELECT * FROM tweets ORDER BY date DESC")
         .fetch_all(db.as_ref())
         .await;
 
@@ -86,7 +72,6 @@ pub async fn get_tweet(db: web::Data<SqlitePool>) -> Result<HttpResponse> {
                     id: row.get("id"),
                     date: datetime_utc,
                     message: row.get("message"),
-                    likes: vec![],
                 };
                 tweets.results.push(tweet)
             }
@@ -129,7 +114,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(pool.clone())) // SQLite Connection Pool
-            .service(index) // GET /
+            .route("/", web::get().to(index)) // GET /
             .service(get_tweet) // GET get_tweet
             .service(add_tweet) // POST add_tweet
             .service(fs::Files::new("/static", "static").index_file("index.html")) // Static file handler (such as styles.css)

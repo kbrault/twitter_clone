@@ -2,28 +2,29 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>{{ app_name }}</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/pure-min.css" integrity="sha384-X38yfunGUhNzHpBaEBsWLO+A0HDYOQi8ufWDkZ0k9e0eXz/tH3II7uKZ9msv++Ls" crossorigin="anonymous" />
+    <title>My super Twitter Clone</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <div class="content-wrapper">
-      <div class="content">
-        <h1>Welcome to {{ app_name }}</h1>
-        <h2>Tweet something :</h2>
-        TODO
-        <h2>My Tweets :</h2>
-        <div id="tweetList"></div>
-        <h2>APIs</h2>
-        <ul>
-          <li>(GET) /tweets</li>
-          <li>(POST) /tweet</li>
-          <li>(DELETE) /tweet</li>
-        </ul>
-      </div>
+    <div class="wrapper">
+   <h1>My <strong>Super</strong> Twitter Clone</h1>
+    <textarea placeholder="Tweet something" rows="10" name="textareaTweet" id="textareaTweet" class="textareaTweet"></textarea>
+    <button id="buttonTweet">Tweet that !</button>
+    <div id="tweetList"></div>
     </div>
     <script>
-      // Function to fetch data from the API and display it in HTML
+      document.getElementById("buttonTweet").addEventListener("click", postTweet);
+
+      async function postTweet() {
+        // reset animation
+        var postTweetDiv = document.getElementById('tweetList');
+        postTweetDiv.innerHTML = "";
+        postTweetDiv.style.animation = 'none';
+        postTweetDiv.offsetHeight;
+        postTweetDiv.style.animation = null; 
+        fetchTweets();
+      }
+
       async function fetchTweets() {
         try {
           const response = await fetch('http://127.0.0.1:8888/tweets')
@@ -31,38 +32,30 @@
           if (!response.ok) {
             throw new Error('Network response was not ok.')
           }
-      
-          const data = await response.json()
+
+          const data = await response.json();
       
           const tweetList = document.getElementById('tweetList')
           data.results.forEach((tweet) => {
             const date = new Date(tweet.date)
-            const options = {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit'
-            }
-            const formattedDate = date.toLocaleDateString('en-US', options);
+            const formattedDate = date.toUTCString();
             const tweetItem = document.createElement('div');
             tweetItem.id = 'id-' + tweet.id;
             tweetItem.classList.add('tweet');
-            
-            const tweetDate = document.createElement('div');
-            tweetDate.classList.add('tweetDate');
-            tweetDate.textContent = tweet.date;
-            tweetItem.appendChild(tweetDate);
-            
+
             const tweetMessage = document.createElement('div');
             tweetMessage.classList.add('tweetMessage');
             tweetMessage.textContent = tweet.message;
             tweetItem.appendChild(tweetMessage);
+
+            const tweetDate = document.createElement('div');
+            tweetDate.classList.add('tweetDate');
+            tweetDate.textContent = formattedDate;
+            tweetItem.appendChild(tweetDate);
             
             const button = document.createElement('button');
             button.textContent = 'delete';
-            button.classList.add('button-error', 'pure-button');
+            button.classList.add('buttonDelete');
             tweetItem.appendChild(button);
             
             tweetList.appendChild(tweetItem);
@@ -76,7 +69,7 @@
         }
       }
       
-      window.onload = fetchTweets
+      window.onload = fetchTweets;
     </script>
   </body>
 </html>

@@ -1,3 +1,4 @@
+use actix_files as fs;
 use actix_web::{get, middleware::Logger, web, App, HttpResponse, HttpServer, Responder, Result};
 use askama::Template;
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
@@ -104,6 +105,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(pool.clone()))
             .service(index)
             .service(list)
+            .service(fs::Files::new("/static", "static").index_file("index.html"))
             .wrap(Logger::new("%a %r %s %b %{Referer}i %{User-Agent}i %Ts"))
     })
     .bind(("127.0.0.1", 8888))?

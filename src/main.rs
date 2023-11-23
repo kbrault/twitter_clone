@@ -1,47 +1,10 @@
-use actix_files as fs;
 use actix_files::NamedFile;
-use actix_web::{
-    get, middleware::Logger, post, web, App, HttpRequest, HttpResponse, HttpServer, Result,
-};
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use actix_web::{middleware::Logger, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use dotenvy;
-use serde::{Deserialize, Serialize};
-use sqlx::{Row, SqlitePool};
+use sqlx::SqlitePool;
 use std::path::PathBuf;
 
-//use uuid::Uuid;
-
-type Tweets = Response<Tweet>;
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Tweet {
-    id: String,
-    date: DateTime<Utc>,
-    message: String,
-}
-
-// TODO for POST :
-// impl Tweet {
-//     fn new(message: String) -> Self {
-//         Self {
-//             id: Uuid::new_v4().to_string(),
-//             date: Utc::now(),
-//             message,
-//             likes: vec![],
-//         }
-//     }
-// }
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Like {
-    id: String,
-    date: DateTime<Utc>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Response<T> {
-    results: Vec<T>,
-}
+mod tweet;
 
 async fn not_found() -> HttpResponse {
     HttpResponse::NotFound().body("404 - Not Found")
@@ -50,55 +13,6 @@ async fn not_found() -> HttpResponse {
 async fn index(_req: HttpRequest) -> Result<NamedFile> {
     let path: PathBuf = "./static/index.html".parse().unwrap();
     Ok(NamedFile::open(path)?)
-}
-
-#[get("/tweets")]
-pub async fn get_tweet(db: web::Data<SqlitePool>) -> Result<HttpResponse> {
-    let mut tweets: Response<Tweet> = Tweets { results: vec![] };
-
-    let result = sqlx::query("SELECT * FROM tweets ORDER BY date DESC")
-        .fetch_all(db.as_ref())
-        .await;
-
-    match result {
-        Ok(rows) => {
-            for row in &rows {
-                // Parsing from SQLite(TEXT) to Tweet<date: DateTime<Utc>>
-                let date_db = row.get("date");
-                let parsed_naive = NaiveDateTime::parse_from_str(date_db, "%Y-%m-%dT%H:%M:%S%.fZ")
-                    .expect("Failed to parse date/time string");
-                let datetime_utc = Utc.from_utc_datetime(&parsed_naive);
-                let tweet = Tweet {
-                    id: row.get("id"),
-                    date: datetime_utc,
-                    message: row.get("message"),
-                };
-                tweets.results.push(tweet)
-            }
-            Ok(HttpResponse::Ok().json(tweets))
-        }
-        Err(_) => Ok(HttpResponse::InternalServerError().body("500 - Internal Server Error")),
-    }
-}
-
-//curl -d '{"id":"value1", "date":"2023-11-22T15:30:00Z", "message":"test", "likes":[]}' -H "Content-Type: application/json" -X POST http://127.0.0.1:8888/tweet
-#[post("/tweet")]
-pub async fn add_tweet(
-    _tweet: web::Json<Tweet>,
-    db: web::Data<SqlitePool>,
-) -> Result<HttpResponse> {
-    let result = sqlx::query("SELECT 1").fetch_all(db.as_ref()).await; // TODO : To be implemented
-    match result {
-        Ok(_) => {
-            eprintln!("POST NotImplemented");
-            Ok(HttpResponse::NotImplemented().body("501 - Not Implemented")) // TODO : To be implemented
-        }
-
-        Err(e) => {
-            eprintln!("Failed to fetch tweets: {:?}", e);
-            Ok(HttpResponse::InternalServerError().finish())
-        }
-    }
 }
 
 #[actix_web::main]
@@ -115,9 +29,10 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(pool.clone())) // SQLite Connection Pool
             .route("/", web::get().to(index)) // GET /
-            .service(get_tweet) // GET get_tweet
-            .service(add_tweet) // POST add_tweet
-            .service(fs::Files::new("/static", "static").index_file("index.html")) // Static file handler (such as styles.css)
+            .service(tweet::get_tweet) // GET get_tweet
+            .service(tweet::add_tweet) // POST add_tweet
+            .service(tweet::delete_tweet) // DELETE delete_tweet
+            .service(actix_files::Files::new("/static", "static").index_file("index.html")) // Static file handler (such as styles.css)
             .default_service(web::route().to(not_found)) // 404
             .wrap(Logger::new("%a %r %s %b %{Referer}i %{User-Agent}i %Ts")) // Logger
     })
